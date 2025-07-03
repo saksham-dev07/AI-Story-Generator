@@ -1,7 +1,7 @@
 # Flask AI Story Generator 📚✨
 
 A powerful Flask web application that uses AI to generate creative stories based on user prompts. Built with GPT-2 and featuring user authentication, story management, and multiple creative writing tools.
-![alt text](Screenshot_3-7-2025_15467_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_15467_127.0.0.1.jpeg) 
 ## Features
 
 ### 🤖 AI Story Generation
