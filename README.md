@@ -30,7 +30,12 @@ A powerful Flask web application that uses AI to generate creative stories based
 - **Random Prompt Generator**: Get inspired with creative writing prompts
 - **Story Analytics**: View word counts, genre distribution, and writing statistics
 - **Model Information**: Monitor AI model status and performance
-
+![alt text](Screenshot_3-7-2025_162918_127.0.0.1.jpeg) 
+![alt text](Screenshot_3-7-2025_16276_127.0.0.1.jpeg) 
+![alt text](Screenshot_3-7-2025_16261_127.0.0.1.jpeg) 
+![alt text](Screenshot_3-7-2025_161439_127.0.0.1.jpeg) 
+![alt text](Screenshot_3-7-2025_161026_127.0.0.1.jpeg) 
+![alt text](Screenshot_3-7-2025_16752_127.0.0.1.jpeg)
 ## Installation
 
 ### Prerequisites
@@ -238,10 +243,6 @@ Feel free to contribute to this project! Areas for improvement:
 - Enhanced UI/UX
 - Story collaboration features
 - Mobile responsiveness
-
-## License
-
-This project is open source and available under the MIT License.
 
 ## Support
 
