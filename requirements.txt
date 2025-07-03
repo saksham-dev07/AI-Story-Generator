@@ -1,0 +1,12 @@
+    Flask
+    torch
+    transformers
+    Werkzeug
+    reportlab 
+    numpy
+    tokenizers
+    huggingface-hub
+    accelerate
+    protobuf
+    requests
+    Pillow

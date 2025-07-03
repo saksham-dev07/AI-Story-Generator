@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Story Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎭 AI Story Generator</h1>
+            <p>Create amazing stories with advanced AI technology</p>
+        </div>
+
+        <div class="auth-section" id="authSection">
+            <div class="user-info" id="userInfo" style="display: none;">
+                Welcome, <span id="username"></span>!
+            </div>
+            
+            <div class="auth-forms" id="authForms">
+                <div class="form-group2">
+                    <input type="text" id="authUsername" placeholder="Username">
+                    <input type="password" id="authPassword" placeholder="Password">
+                    <button class="btn btn-small" onclick="login()">Login</button>
+                    <button class="btn btn-secondary btn-small" onclick="showRegister()">Register</button>
+                </div>
+            </div>
+            
+            <div class="auth-forms" id="registerForm" style="display: none;">
+                <div class="form-group2">
+                    <input type="text" id="regUsername" placeholder="Username">
+                    <input type="email" id="regEmail" placeholder="Email">
+                    <input type="password" id="regPassword" placeholder="Password">
+                    <button class="btn btn-success btn-small" onclick="register()">Create Account</button>
+                    <button class="btn btn-secondary btn-small" onclick="hideRegister()">Cancel</button>
+                </div>
+            </div>
+            
+            <div id="loggedInActions" style="display: none;">
+                <button class="btn btn-small" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="story-generator">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('generate')">Generate Story</div>
+                    <div class="tab" onclick="switchTab('enhance')">Enhance Story</div>
+                    <div class="tab" onclick="switchTab('endings')">Multiple Endings</div>
+                    <div class="tab" onclick="switchTab('library')">My Stories</div>
+                    <div class="tab" onclick="switchTab('stats')">Statistics</div>
+                </div>
+
+                <!-- Generate Story Tab -->
+                <div class="tab-content active" id="generateTab">
+                    <div class="form-group">
+                        <label for="storyTitle">Story Title (Optional)</label>
+                        <input type="text" id="storyTitle" placeholder="Enter a title for your story">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="storyPrompt">Story Prompt</label>
+                        <textarea id="storyPrompt" placeholder="Enter your story prompt here..."></textarea>
+                        <button class="btn btn-secondary btn-small" onclick="getRandomPrompt()" style="margin-top: 10px;">
+                            🎲 Random Prompt
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="genre">Genre</label>
+                        <select id="genre">
+                            <option value="">Select a genre (optional)</option>
+                            <option value="fantasy">Fantasy</option>
+                            <option value="sci-fi">Science Fiction</option>
+                            <option value="mystery">Mystery</option>
+                            <option value="romance">Romance</option>
+                            <option value="horror">Horror</option>
+                            <option value="adventure">Adventure</option>
+                            <option value="comedy">Comedy</option>
+                        </select>
+                    </div>
+
+                    <div class="advanced-controls">
+                        <label>
+                            <input type="checkbox" id="showAdvanced" onchange="toggleAdvanced()" style="width: 20px;"> 
+                            Show Advanced Settings
+                        </label>
+                        
+                        <div id="advancedSettings" style="display: none;">
+                            <div class="controls-grid">
+                                <div class="range-input">
+                                    <label>Story Length</label>
+                                    <input type="range" id="maxLength" min="100" max="1000" value="300" oninput="updateRangeValue('maxLength')">
+                                    <div class="range-value" id="maxLengthValue">300 words</div>
+                                </div>
+                                
+                                <div class="range-input">
+                                    <label>Creativity</label>
+                                    <input type="range" id="temperature" min="0.1" max="1.5" step="0.1" value="0.8" oninput="updateRangeValue('temperature')">
+                                    <div class="range-value" id="temperatureValue">0.8</div>
+                                </div>
+                                
+                                <div class="range-input">
+                                    <label>Focus</label>
+                                    <input type="range" id="topP" min="0.1" max="1.0" step="0.1" value="0.9" oninput="updateRangeValue('topP')">
+                                    <div class="range-value" id="topPValue">0.9</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="makePublic" style=" width: 20px; margin-top: 15px;"> Make this story public
+                        </label>
+                    </div>
+
+                    <button class="btn" onclick="generateStory()" id="generateBtn">
+                        ✨ Generate Story
+                    </button>
+
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <p>Crafting your story...</p>
+                    </div>
+
+                    <div id="storyResult" style="display: none;">
+                        <div class="story-output" id="generatedStory"></div>
+                        <div class="story-actions">
+                            <button class="btn btn-secondary" onclick="copyToClipboard()">📋 Copy</button>
+                            <button class="btn btn-secondary" onclick="saveStory()">💾 Save</button>
+                            <button class="btn btn-secondary" onclick="exportPDF()">📄 Export PDF</button>
+                            <button class="btn btn-secondary" onclick="enhanceCurrentStory()">✨ Enhance</button>
+                            <button class="btn btn-secondary" onclick="generateEndingsForCurrent()">🔀 Alt Endings</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enhance Story Tab -->
+                <div class="tab-content" id="enhanceTab">
+                    <div class="form-group">
+                        <label for="storyToEnhance">Story to Enhance</label>
+                        <textarea id="storyToEnhance" placeholder="Paste your story here to enhance it..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="enhancementType">Enhancement Type</label>
+                        <select id="enhancementType">
+                            <option value="detail">Add More Details</option>
+                            <option value="dialogue">Add More Dialogue</option>
+                            <option value="emotion">Enhance Emotions</option>
+                            <option value="action">Add More Action</option>
+                        </select>
+                    </div>
+
+                    <button class="btn" onclick="enhanceStory()" id="enhanceBtn">
+                        ✨ Enhance Story
+                    </button>
+
+                    <div class="loading" id="enhanceLoading">
+                        <div class="spinner"></div>
+                        <p>Enhancing your story...</p>
+                    </div>
+
+                    <div id="enhanceResult" style="display: none;">
+                        <div class="story-output" id="enhancedStory"></div>
+                        <div class="story-actions">
+                            <button class="btn btn-secondary" onclick="copyEnhanced()">📋 Copy Enhanced</button>
+                            <button class="btn btn-secondary" onclick="useEnhanced()">➡️ Use This Version</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multiple Endings Tab -->
+                <div class="tab-content" id="endingsTab">
+                    <div class="form-group">
+                        <label for="storyForEndings">Story Beginning</label>
+                        <textarea id="storyForEndings" placeholder="Enter the beginning of your story..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numEndings">Number of Endings (2-5)</label>
+                        <input type="number" id="numEndings" min="2" max="5" value="3">
+                    </div>
+
+                    <button class="btn" onclick="generateMultipleEndings()" id="endingsBtn">
+                        🔀 Generate Multiple Endings
+                    </button>
+
+                    <div class="loading" id="endingsLoading">
+                        <div class="spinner"></div>
+                        <p>Creating multiple endings...</p>
+                    </div>
+
+                    <div id="endingsResult" style="display: none;">
+                        <div class="endings-container" id="endingsContainer"></div>
+                    </div>
+                </div>
+
+                <!-- My Stories Tab -->
+                <div class="tab-content" id="libraryTab">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>My Stories</h3>
+                        <button class="btn btn-secondary" onclick="loadMyStories()">🔄 Refresh</button>
+                    </div>
+
+                    <div id="myStoriesContainer">
+                        <p>Please log in to view your stories.</p>
+                    </div>
+                </div>
+
+                <!-- Statistics Tab -->
+                <div class="tab-content" id="statsTab">
+                    <h3>Your Writing Statistics</h3>
+                    <div id="statsContainer">
+                        <p>Please log in to view your statistics.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <h3>🌟 Features</h3>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin: 10px 0;">✨ AI-powered story generation</li>
+                    <li style="margin: 10px 0;">🎭 Multiple genres available</li>
+                    <li style="margin: 10px 0;">🔧 Advanced customization</li>
+                    <li style="margin: 10px 0;">📚 Story enhancement</li>
+                    <li style="margin: 10px 0;">🔀 Multiple endings</li>
+                    <li style="margin: 10px 0;">💾 Save & organize stories</li>
+                    <li style="margin: 10px 0;">📊 Writing statistics</li>
+                    <li style="margin: 10px 0;">📄 PDF export</li>
+                </ul>
+
+                <div style="margin-top: 30px;">
+                    <h4>🌍 Public Stories</h4>
+                    <div id="publicStories">
+                        <button class="btn btn-secondary btn-small" onclick="loadPublicStories()">Load Public Stories</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <h4>💡 Tips</h4>
+                    <p style="font-size: 14px; line-height: 1.4;">
+                        • Be specific in your prompts<br>
+                        • Try different genres for variety<br>
+                        • Use advanced settings to fine-tune<br>
+                        • Save your favorites<br>
+                        • Experiment with enhancement options
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
