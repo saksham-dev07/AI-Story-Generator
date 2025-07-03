@@ -6,6 +6,7 @@ A powerful Flask web application that uses AI to generate creative stories based
 ![alt text](images/Screenshot_3-7-2025_154450_127.0.0.1.jpeg) 
 ![alt text](images/Screenshot_3-7-2025_154550_127.0.0.1.jpeg) 
 ![alt text](images/Screenshot_3-7-2025_154559_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_154656_127.0.0.1.jpeg)
 ## Features
 
 ### 🤖 AI Story Generation
@@ -30,12 +31,12 @@ A powerful Flask web application that uses AI to generate creative stories based
 - **Random Prompt Generator**: Get inspired with creative writing prompts
 - **Story Analytics**: View word counts, genre distribution, and writing statistics
 - **Model Information**: Monitor AI model status and performance
-![alt text](Screenshot_3-7-2025_16752_127.0.0.1.jpeg)
-![alt text](Screenshot_3-7-2025_162918_127.0.0.1.jpeg)
-![alt text](Screenshot_3-7-2025_161026_127.0.0.1.jpeg) 
-![alt text](Screenshot_3-7-2025_16276_127.0.0.1.jpeg) 
-![alt text](Screenshot_3-7-2025_16261_127.0.0.1.jpeg) 
-![alt text](Screenshot_3-7-2025_161439_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_16752_127.0.0.1.jpeg)
+![alt text](images/Screenshot_3-7-2025_162918_127.0.0.1.jpeg)
+![alt text](images/Screenshot_3-7-2025_161026_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_16276_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_16261_127.0.0.1.jpeg) 
+![alt text](images/Screenshot_3-7-2025_161439_127.0.0.1.jpeg) 
  
 
 ## Installation
