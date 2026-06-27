@@ -1,33 +1,38 @@
-from flask import Flask, render_template, request, jsonify, session, send_file
-import torch
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, pipeline
+from flask import Flask, render_template, request, jsonify, session, send_file, g
+import requests
+from google import genai
 import os
 import re
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 import json
 import uuid
 from datetime import datetime
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Response
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 import textwrap
+from xml.sax.saxutils import escape
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')
 
 # Initialize database
 def init_db():
     """Initialize the SQLite database"""
-    conn = sqlite3.connect('stories.db')
-    c = conn.cursor()
+    with sqlite3.connect('stories.db') as conn:
+        c = conn.cursor()
     
     # Users table
     c.execute('''
@@ -74,13 +79,16 @@ def init_db():
 
 class StoryGenerator:
     def __init__(self):
-        self.model = None
-        self.tokenizer = None
-        self.generator = None
-        self.model_name = "gpt2-medium"
-        self.models_dir = "./models"  # Local models directory
-        self.local_model_path = os.path.join(self.models_dir, "gpt2_medium")
+        self.model_name = "gemini-3.1-flash-lite"
         
+        # Configure Gemini API
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if api_key:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            logger.warning("GEMINI_API_KEY environment variable not set!")
+            self.client = None
+            
         self.genres = {
             'fantasy': "In a magical realm where",
             'sci-fi': "In the distant future where technology has advanced beyond imagination,",
@@ -90,144 +98,109 @@ class StoryGenerator:
             'adventure': "The map was old and weathered, but it promised treasures beyond",
             'comedy': "It was supposed to be a normal Tuesday, but nothing about this day would be"
         }
-        self.load_model()
-    
-    def ensure_model_directory(self):
-        """Create models directory if it doesn't exist"""
-        os.makedirs(self.models_dir, exist_ok=True)
-        os.makedirs(self.local_model_path, exist_ok=True)
-    
-    def download_and_save_model(self):
-        """Download model and save it locally"""
-        logger.info(f"Downloading {self.model_name} to {self.local_model_path}")
-        
-        try:
-            # Download from Hugging Face
-            tokenizer = GPT2Tokenizer.from_pretrained(self.model_name)
-            model = GPT2LMHeadModel.from_pretrained(self.model_name)
-            
-            # Save to local directory
-            tokenizer.save_pretrained(self.local_model_path)
-            model.save_pretrained(self.local_model_path)
-            
-            logger.info(f"Model saved successfully to {self.local_model_path}")
-            return model, tokenizer
-            
-        except Exception as e:
-            logger.error(f"Error downloading model: {str(e)}")
-            raise e
-    
-    def load_model(self):
-        """Load the AI model and tokenizer"""
-        try:
-            self.ensure_model_directory()
-            
-            # Check if model exists locally
-            config_path = os.path.join(self.local_model_path, "config.json")
-            
-            if os.path.exists(config_path):
-                # Load from local directory
-                logger.info(f"Loading model from local directory: {self.local_model_path}")
-                self.tokenizer = GPT2Tokenizer.from_pretrained(self.local_model_path)
-                self.model = GPT2LMHeadModel.from_pretrained(self.local_model_path)
-            else:
-                # Download and save locally
-                logger.info(f"Model not found locally. Downloading {self.model_name}...")
-                self.model, self.tokenizer = self.download_and_save_model()
-            
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            
-            self.generator = pipeline(
-                'text-generation',
-                model=self.model,
-                tokenizer=self.tokenizer,
-                device=0 if torch.cuda.is_available() else -1
-            )
-            
-            logger.info("Model loaded successfully!")
-            logger.info(f"Model location: {os.path.abspath(self.local_model_path)}")
-            
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            raise e
     
     def get_model_info(self):
         """Get information about the loaded model"""
         return {
             'model_name': self.model_name,
-            'local_path': os.path.abspath(self.local_model_path),
-            'model_exists': os.path.exists(os.path.join(self.local_model_path, "config.json")),
-            'model_size_mb': self.get_model_size()
+            'local_path': "Google Cloud API",
+            'model_exists': bool(os.environ.get("GEMINI_API_KEY")),
+            'model_size_mb': "Cloud"
         }
     
     def get_model_size(self):
-        """Calculate model size in MB"""
-        try:
-            total_size = 0
-            for dirpath, dirnames, filenames in os.walk(self.local_model_path):
-                for filename in filenames:
-                    filepath = os.path.join(dirpath, filename)
-                    total_size += os.path.getsize(filepath)
-            return round(total_size / (1024 * 1024), 2)  # Convert to MB
-        except:
-            return 0
+        return 0
     
+    def _call_gemini(self, prompt, temperature, top_p):
+        """Helper to call Gemini API"""
+        if not os.environ.get("GEMINI_API_KEY") or not self.client:
+            raise ValueError("GEMINI_API_KEY environment variable is not set. Please set it to use the AI generator.")
+            
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
+                    temperature=temperature,
+                    top_p=top_p,
+                )
+            )
+            return response.text
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "quota" in error_msg.lower() or "exhausted" in error_msg.lower():
+                logger.error(f"Rate limit hit: {error_msg}")
+                raise Exception("RATE_LIMIT")
+            logger.error(f"Gemini API error: {error_msg}")
+            raise e
+            
+    def _call_gemini_stream(self, prompt, temperature, top_p):
+        """Helper to call Gemini API and stream the response"""
+        if not os.environ.get("GEMINI_API_KEY") or not self.client:
+            raise ValueError("GEMINI_API_KEY environment variable is not set.")
+            
+        try:
+            response = self.client.models.generate_content_stream(
+                model=self.model_name,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
+                    temperature=temperature,
+                    top_p=top_p,
+                )
+            )
+            for chunk in response:
+                yield chunk.text
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "quota" in error_msg.lower() or "exhausted" in error_msg.lower():
+                logger.error(f"Rate limit hit: {error_msg}")
+                raise Exception("RATE_LIMIT")
+            logger.error(f"Gemini API error: {error_msg}")
+            raise e
+            
     def generate_story(self, prompt, max_length=300, temperature=0.8, top_p=0.9, genre=None):
         """Generate a story based on the given prompt"""
         try:
-            # Add genre-specific prefix if specified
             if genre and genre in self.genres:
                 genre_prompt = self.genres[genre]
                 prompt = f"{genre_prompt} {prompt}"
             
-            cleaned_prompt = self.clean_prompt(prompt)
+            prompt = self.clean_prompt(prompt)
+            instruct_prompt = f"Write a creative story starting exactly with the following prompt. Do not include any meta-commentary, titles, or intro, just write the story. Make the story roughly {max_length} words.\n\nPrompt: {prompt}"
             
-            generated = self.generator(
-                cleaned_prompt,
-                max_length=max_length,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=50,
-                do_sample=True,
-                num_return_sequences=1,
-                pad_token_id=self.tokenizer.eos_token_id,
-                truncation=True
-            )
+            story_text = self._call_gemini(instruct_prompt, temperature, top_p)
             
-            story = generated[0]['generated_text']
-            story = self.post_process_story(story, cleaned_prompt)
-            
-            return story
+            return self.post_process_story(story_text, prompt)
             
         except Exception as e:
+            if str(e) == "RATE_LIMIT":
+                return "⏳ You are generating stories too fast! Google's Free Tier limits you to 5 requests per minute. Please wait about 60 seconds and try again."
             logger.error(f"Error generating story: {str(e)}")
-            return f"Sorry, there was an error generating your story: {str(e)}"
+            return f"Sorry, there was an error generating your story. Did you set your GEMINI_API_KEY? Error: {str(e)}"
     
     def generate_multiple_endings(self, story_beginning, num_endings=3):
         """Generate multiple different endings for a story"""
         endings = []
         for i in range(num_endings):
-            # Use different temperature values for variety
             temp = 0.7 + (i * 0.1)
-            ending = self.generate_story(
-                story_beginning + " The story concluded when",
-                max_length=150,
-                temperature=temp
-            )
+            prompt = f"Provide a single possible short ending for the following story. Do not provide commentary, just the ending text.\n\nStory: {story_beginning}"
+            ending = self._call_gemini(prompt, temp, 0.9)
             endings.append(ending)
         return endings
     
     def enhance_story(self, story, enhancement_type="detail"):
         """Enhance an existing story with more details, dialogue, or descriptions"""
         enhancement_prompts = {
-            "detail": "Expand this story with more vivid details and descriptions: ",
-            "dialogue": "Rewrite this story adding more character dialogue: ",
-            "emotion": "Rewrite this story emphasizing the emotions and feelings: ",
-            "action": "Rewrite this story with more action and excitement: "
+            "detail": "Rewrite and expand this story with more vivid details and descriptions:\n\n",
+            "dialogue": "Rewrite this story adding more character dialogue:\n\n",
+            "emotion": "Rewrite this story emphasizing the emotions and feelings of the characters:\n\n",
+            "action": "Rewrite this story with more action and excitement:\n\n"
         }
         
-        prompt = enhancement_prompts.get(enhancement_type, enhancement_prompts["detail"])
-        enhanced = self.generate_story(prompt + story, max_length=len(story.split()) * 2)
+        instruction = enhancement_prompts.get(enhancement_type, enhancement_prompts["detail"])
+        prompt = f"{instruction}{story}\n\nJust provide the rewritten story without any introductory text."
+        
+        enhanced = self._call_gemini(prompt, 0.7, 0.9)
         return enhanced
     
     def clean_prompt(self, prompt):
@@ -239,23 +212,28 @@ class StoryGenerator:
     
     def post_process_story(self, story, original_prompt):
         """Clean up the generated story"""
-        if story.startswith(original_prompt):
-            story = story[len(original_prompt):].strip()
+        story = re.sub(r'\n+', '\n\n', story).strip()
         
-        story = re.sub(r'\n+', '\n\n', story)
-        story = re.sub(r'\s+', ' ', story)
-        
-        if not story.startswith(original_prompt):
+        if original_prompt.lower() not in story[:200].lower():
             story = original_prompt + ' ' + story
+            
+        return story
         
         return story.strip()
 
 # Database helper functions
 def get_db():
     """Get database connection"""
-    conn = sqlite3.connect('stories.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    if 'db' not in g:
+        g.db = sqlite3.connect('stories.db')
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+@app.teardown_appcontext
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 def save_story(user_id, story_data):
     """Save a story to the database"""
@@ -277,7 +255,6 @@ def save_story(user_id, story_data):
     ))
     
     conn.commit()
-    conn.close()
     return story_id
 
 def get_user_stories(user_id):
@@ -286,7 +263,6 @@ def get_user_stories(user_id):
     stories = conn.execute('''
         SELECT * FROM stories WHERE user_id = ? ORDER BY created_at DESC
     ''', (user_id,)).fetchall()
-    conn.close()
     return [dict(story) for story in stories]
 
 def get_public_stories(limit=20):
@@ -299,7 +275,6 @@ def get_public_stories(limit=20):
         ORDER BY s.created_at DESC
         LIMIT ?
     ''', (limit,)).fetchall()
-    conn.close()
     return [dict(story) for story in stories]
 
 # Initialize the story generator and database
@@ -323,6 +298,16 @@ def generate():
         data = request.get_json()
         prompt = data.get('prompt', '')
         
+        char_name = data.get('character_name', '').strip()
+        char_traits = data.get('character_traits', '').strip()
+        
+        if char_name or char_traits:
+            char_info = f"The main character is {char_name if char_name else 'someone'}."
+            if char_traits:
+                char_info += f" They are {char_traits}."
+            prompt = f"{char_info} {prompt}"
+            
+        
         if not prompt:
             return jsonify({'error': 'Please provide a story prompt'}), 400
         
@@ -331,36 +316,57 @@ def generate():
         temperature = float(data.get('temperature', 0.8))
         top_p = float(data.get('top_p', 0.9))
         genre = data.get('genre')
+                # Extract variables before starting stream generator
+        user_id = session.get('user_id')
+        story_title = data.get('title', 'Generated Story')
+        is_public = data.get('is_public', False)
         
-        # Generate the story
-        story = story_gen.generate_story(
-            prompt=prompt,
-            max_length=max_length,
-            temperature=temperature,
-            top_p=top_p,
-            genre=genre
-        )
+        # Pollinations.ai image URL
+        import urllib.parse
+        encoded_prompt = urllib.parse.quote(prompt[:200])
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=512&nologo=true"
         
-        # Save story if user is logged in
-        if 'user_id' in session:
-            story_data = {
-                'title': data.get('title', 'Generated Story'),
-                'prompt': prompt,
-                'story': story,
-                'genre': genre,
-                'is_public': data.get('is_public', False)
-            }
-            story_id = save_story(session['user_id'], story_data)
-        else:
-            story_id = None
-        
-        return jsonify({
-            'story': story,
-            'prompt': prompt,
-            'story_id': story_id,
-            'word_count': len(story.split()),
-            'genre': genre
-        })
+        def generate_stream():
+            try:
+                # Send initial setup with cover image
+                yield f"data: {json.dumps({'type': 'init', 'image': image_url})}\n\n"
+                
+                final_prompt = prompt
+                if genre and genre in story_gen.genres:
+                    final_prompt = f"{story_gen.genres[genre]} {final_prompt}"
+                
+                final_prompt = story_gen.clean_prompt(final_prompt)
+                instruct_prompt = f"Write a creative story starting exactly with the following prompt. You MUST use Markdown formatting (like **bold**, *italics*, and headers) to make the story visually engaging. Do not include any meta-commentary, titles, or intro, just write the story. Make the story roughly {max_length} words.\n\nPrompt: {final_prompt}"
+                
+                full_story = ""
+                for chunk in story_gen._call_gemini_stream(instruct_prompt, temperature, top_p):
+                    if chunk:
+                        full_story += chunk
+                        yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                
+                # Save story if user is logged in
+                story_id = None
+                if user_id:
+                    story_data = {
+                        'title': story_title,
+                        'prompt': prompt,
+                        'story': full_story,
+                        'genre': genre,
+                        'is_public': is_public
+                    }
+                    story_id = save_story(user_id, story_data)
+                
+                word_count = len(full_story.split())
+                yield f"data: {json.dumps({'type': 'done', 'story_id': story_id, 'word_count': word_count})}\n\n"
+                
+            except Exception as e:
+                if str(e) == "RATE_LIMIT":
+                    err = "⏳ You are generating stories too fast! Google's Free Tier limits you to 15 requests per minute. Please wait about 60 seconds and try again."
+                else:
+                    err = f"Error generating story: {str(e)}"
+                yield f"data: {json.dumps({'type': 'error', 'error': err})}\n\n"
+
+        return Response(generate_stream(), mimetype='text/event-stream')
         
     except Exception as e:
         logger.error(f"Error in generate endpoint: {str(e)}")
@@ -436,10 +442,12 @@ def export_pdf(story_id):
     try:
         conn = get_db()
         story = conn.execute('SELECT * FROM stories WHERE id = ?', (story_id,)).fetchone()
-        conn.close()
         
         if not story:
             return jsonify({'error': 'Story not found'}), 404
+            
+        if not story['is_public'] and story['user_id'] != session.get('user_id'):
+            return jsonify({'error': 'Unauthorized to access this story'}), 403
         
         # Create PDF
         buffer = io.BytesIO()
@@ -448,7 +456,8 @@ def export_pdf(story_id):
         story_elements = []
         
         # Title
-        title = Paragraph(f"<b>{story['title']}</b>", styles['Title'])
+        safe_title = escape(story['title'])
+        title = Paragraph(f"<b>{safe_title}</b>", styles['Title'])
         story_elements.append(title)
         story_elements.append(Spacer(1, 12))
         
@@ -458,7 +467,8 @@ def export_pdf(story_id):
         
         for para in paragraphs:
             if para.strip():
-                p = Paragraph(para, styles['Normal'])
+                safe_para = escape(para)
+                p = Paragraph(safe_para, styles['Normal'])
                 story_elements.append(p)
                 story_elements.append(Spacer(1, 6))
         
@@ -490,6 +500,86 @@ def public_stories():
     """Get public stories"""
     stories = get_public_stories()
     return jsonify({'stories': stories})
+
+@app.route('/continue', methods=['POST'])
+def continue_story():
+    """Continue story endpoint"""
+    try:
+        data = request.get_json()
+        story_text = data.get('story', '')
+        
+        if not story_text:
+            return jsonify({'error': 'Please provide a story to continue'}), 400
+            
+        temperature = float(data.get('temperature', 0.8))
+        prompt = story_text[-500:] if len(story_text) > 500 else story_text
+        
+        continuation = story_gen.generate_story(
+            prompt=prompt,
+            max_length=min(len(prompt.split()) + 150, 1000),
+            temperature=temperature
+        )
+        
+        if continuation.startswith(prompt):
+            continuation = continuation[len(prompt):].strip()
+            
+        return jsonify({'continuation': continuation})
+        
+    except Exception as e:
+        logger.error(f"Error in continue endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/favorite/<story_id>', methods=['POST'])
+def toggle_favorite(story_id):
+    """Toggle a story as favorite"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please log in'}), 401
+        
+    try:
+        conn = get_db()
+        existing = conn.execute(
+            'SELECT id FROM favorites WHERE user_id = ? AND story_id = ?',
+            (session['user_id'], story_id)
+        ).fetchone()
+        
+        if existing:
+            conn.execute('DELETE FROM favorites WHERE id = ?', (existing['id'],))
+            is_favorite = False
+        else:
+            conn.execute(
+                'INSERT INTO favorites (user_id, story_id) VALUES (?, ?)',
+                (session['user_id'], story_id)
+            )
+            is_favorite = True
+            
+        conn.commit()
+        return jsonify({'is_favorite': is_favorite})
+        
+    except Exception as e:
+        logger.error(f"Error toggling favorite: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/favorites')
+def get_favorites():
+    """Get user's favorite stories"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please log in'}), 401
+        
+    try:
+        conn = get_db()
+        stories = conn.execute('''
+            SELECT s.*, u.username FROM favorites f
+            JOIN stories s ON f.story_id = s.id
+            JOIN users u ON s.user_id = u.id
+            WHERE f.user_id = ?
+            ORDER BY f.created_at DESC
+        ''', (session['user_id'],)).fetchall()
+        
+        return jsonify({'stories': [dict(story) for story in stories]})
+        
+    except Exception as e:
+        logger.error(f"Error getting favorites: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -523,7 +613,6 @@ def register():
         
         user_id = cursor.lastrowid
         conn.commit()
-        conn.close()
         
         session['user_id'] = user_id
         session['username'] = username
@@ -550,7 +639,6 @@ def login():
             'SELECT * FROM users WHERE username = ?',
             (username,)
         ).fetchone()
-        conn.close()
         
         if user and check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
@@ -596,8 +684,6 @@ def story_stats():
         FROM stories 
         WHERE user_id = ?
     ''', (session['user_id'],)).fetchone()
-    
-    conn.close()
     
     return jsonify({
         'total_stats': dict(total_stats) if total_stats else {},

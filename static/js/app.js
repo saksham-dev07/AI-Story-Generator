@@ -171,6 +171,8 @@ function switchTab(tabName) {
         loadMyStories();
     } else if (tabName === 'stats' && currentUser) {
         loadStats();
+    } else if (tabName === 'favorites' && currentUser) {
+        loadFavoriteStories();
     }
 }
 
@@ -185,10 +187,12 @@ async function generateStory() {
     const generateBtn = document.getElementById('generateBtn');
     const loading = document.getElementById('loading');
     const result = document.getElementById('storyResult');
+    const storyDiv = document.getElementById('generatedStory');
 
     generateBtn.disabled = true;
     loading.style.display = 'block';
     result.style.display = 'none';
+    storyDiv.innerHTML = '';
 
     try {
         const response = await fetch('/generate', {
@@ -196,6 +200,8 @@ async function generateStory() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: prompt,
+                character_name: document.getElementById('charName').value,
+                character_traits: document.getElementById('charTraits').value,
                 title: document.getElementById('storyTitle').value,
                 genre: document.getElementById('genre').value,
                 max_length: parseInt(document.getElementById('maxLength').value),
@@ -205,22 +211,61 @@ async function generateStory() {
             })
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            showMessage(errData.error || 'Failed to generate story', 'error');
+            generateBtn.disabled = false;
+            loading.style.display = 'none';
+            return;
+        }
 
-        if (response.ok) {
-            generatedStory = data.story;
-            currentStoryId = data.story_id;
-            document.getElementById('generatedStory').textContent = data.story;
-            result.style.display = 'block';
-            showMessage(`Story generated! (${data.word_count} words)`, 'success');
-        } else {
-            showMessage(data.error, 'error');
+        result.style.display = 'block';
+        loading.style.display = 'none';
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let fullText = '';
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.substring(6).trim();
+                    if (!dataStr) continue;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.type === 'init') {
+                            storyDiv.innerHTML = `<img src="${data.image}" alt="Story Cover" style="width:100%; border-radius:8px; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div id="storyText" class="markdown-body"></div>`;
+                        } else if (data.type === 'chunk') {
+                            fullText += data.text;
+                            const textDiv = document.getElementById('storyText');
+                            if (textDiv) {
+                                textDiv.innerHTML = marked.parse(fullText);
+                            } else {
+                                storyDiv.innerHTML = marked.parse(fullText);
+                            }
+                        } else if (data.type === 'done') {
+                            currentStoryId = data.story_id;
+                            generatedStory = fullText;
+                            showMessage(`Story generated! (${data.word_count} words)`, 'success');
+                        } else if (data.type === 'error') {
+                            showMessage(data.error, 'error');
+                        }
+                    } catch(e) {
+                        console.error('Error parsing stream data:', e, dataStr);
+                    }
+                }
+            }
         }
     } catch (error) {
-        showMessage('Failed to generate story', 'error');
+        showMessage('Connection error while generating story', 'error');
     } finally {
         generateBtn.disabled = false;
-        loading.style.display = 'none';
     }
 }
 
@@ -253,7 +298,7 @@ async function enhanceStory() {
         const data = await response.json();
 
         if (response.ok) {
-            document.getElementById('enhancedStory').textContent = data.enhanced_story;
+            document.getElementById('enhancedStory').innerHTML = marked.parse(data.enhanced_story);
             result.style.display = 'block';
             showMessage(`Story enhanced! (${data.word_count} words)`, 'success');
         } else {
@@ -322,9 +367,9 @@ function displayEndings(endings) {
         title.textContent = `Ending ${index + 1}`;
         
         const content = document.createElement('div');
-        content.style.whiteSpace = 'pre-wrap';
+        content.className = 'markdown-body';
         content.style.lineHeight = '1.6';
-        content.textContent = ending;
+        content.innerHTML = marked.parse(ending);
         
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn btn-secondary btn-small';
@@ -428,6 +473,7 @@ function displayPublicStories(stories) {
             <div style="font-size: 14px; font-weight: bold;">${story.title}</div>
             <div style="font-size: 12px; color: #666;">by ${story.username}</div>
             ${story.genre ? `<span class="genre-tag" style="font-size: 10px;">${story.genre}</span>` : ''}
+            <button class="btn btn-secondary btn-small" style="margin-top: 5px;" onclick="toggleFavorite('${story.id}', this)"><i class="fa-regular fa-heart"></i> Favorite</button>
         </div>`
     ).join('');
 }
@@ -525,6 +571,108 @@ function generateEndingsForCurrent() {
     } else {
         showMessage('No story for endings', 'error');
     }
+}
+
+async function continueStory() {
+    if (!generatedStory) return;
+    
+    const btn = document.querySelector('button[onclick="continueStory()"]');
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Continuing...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/continue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                story: generatedStory,
+                temperature: parseFloat(document.getElementById('temperature').value) || 0.8
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            generatedStory += '\n\n' + data.continuation;
+            const textDiv = document.getElementById('storyText');
+            if (textDiv) {
+                textDiv.innerHTML = marked.parse(generatedStory);
+            } else {
+                document.getElementById('generatedStory').innerHTML = marked.parse(generatedStory);
+            }
+            showMessage('Story continued!', 'success');
+        } else {
+            showMessage(data.error, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to continue story', 'error');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function toggleFavorite(storyId, btnElement) {
+    if (!currentUser) {
+        showMessage('Please login to favorite stories', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/favorite/${storyId}`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.is_favorite) {
+                btnElement.innerHTML = '<i class="fa-solid fa-heart"></i> Favorited';
+                btnElement.classList.add('btn-success');
+            } else {
+                btnElement.innerHTML = '<i class="fa-regular fa-heart"></i> Favorite';
+                btnElement.classList.remove('btn-success');
+            }
+        } else {
+            showMessage(data.error, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to toggle favorite', 'error');
+    }
+}
+
+async function loadFavoriteStories() {
+    if (!currentUser) return;
+    try {
+        const response = await fetch('/favorites');
+        const data = await response.json();
+        if (response.ok) {
+            displayFavoriteStories(data.stories);
+        }
+    } catch (error) {
+        showMessage('Failed to load favorites', 'error');
+    }
+}
+
+function displayFavoriteStories(stories) {
+    const container = document.getElementById('favoritesContainer');
+    if (stories.length === 0) {
+        container.innerHTML = '<p>No favorite stories yet.</p>';
+        return;
+    }
+    container.innerHTML = stories.map(story => 
+        `<div class="story-card">
+            <div class="story-meta">
+                <div>
+                    <strong>${story.title}</strong> by ${story.username}
+                </div>
+            </div>
+            <div style="margin: 10px 0; color: #666; font-size: 14px;">
+                ${story.prompt.substring(0, 100)}...
+            </div>
+            <div class="story-actions">
+                <button class="btn btn-secondary btn-small" onclick="toggleFavorite('${story.id}', this)"><i class="fa-solid fa-heart"></i> Favorited</button>
+            </div>
+        </div>`
+    ).join('');
 }
 
 function copyToClipboard() {

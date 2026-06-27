@@ -57,7 +57,7 @@ if not exist requirements.txt (
     pause
     popd & exit /b 1
 )
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo [ERROR] Failed to install dependencies.
     pause
@@ -73,8 +73,8 @@ if not exist app.py (
 )
 echo [INFO]  Launching Flask server...
 set "FLASK_APP=app.py"
-set "FLASK_ENV=development"
-start "Flask Server" cmd /c "python -m flask run --host=127.0.0.1 --port=5000"
+set "FLASK_DEBUG=1"
+start "Flask Server" cmd /k "python -m flask run --host=127.0.0.1 --port=5000"
 REM 6) Wait for server to become available
 echo [INFO]  Waiting for server on http://127.0.0.1:5000 ...
 set /a COUNT=0
@@ -92,6 +92,8 @@ set /a COUNT=0
     )
 :SERVER_READY
 echo [OK]    Flask server is running!
+echo [INFO]  Opening browser...
+start http://127.0.0.1:5000
 echo [INFO]  You can access your app at: http://127.0.0.1:5000
 echo [INFO]  Press Ctrl+C in the Flask Server window to stop the server.
 echo.

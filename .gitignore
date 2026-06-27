@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Database
+stories.db
+*.sqlite3
+*.db
+
+# Downloaded Models (Too large for GitHub, generated/downloaded at runtime)
+models/
+
+# IDE / OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
