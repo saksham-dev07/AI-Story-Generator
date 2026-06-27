@@ -1,34 +1,34 @@
-# AI Story Generator 📚✨
+# AI Story Generator
 
 A modern, fast, and sleek Flask web application that uses Google's Gemini AI to generate incredibly creative stories based on user prompts. Completely overhauled with a premium Dark Mode aesthetic, real-time streaming, and AI cover image generation.
 
 ![alt text](images/Screenshot_3-7-2025_15448_127.0.0.1.jpeg)
 
-## ✨ New Features & Upgrades
+## New Features & Upgrades
 
-### 🤖 Cloud AI Integration
+### Cloud AI Integration
 - **Google Gemini API**: Replaced heavy local models with the lightning-fast `gemini-1.5-flash` model, requiring zero local compute power.
 - **Real-Time Streaming**: Watch your stories type out word-by-word instantly with Server-Sent Events (SSE). No more waiting for loading spinners!
 - **Rich Text Formatting**: Stories are now beautifully formatted using Markdown (bolding, italics, headers) via `marked.js`.
 
-### 🎨 Premium Aesthetic Overhaul
+### Premium Aesthetic Overhaul
 - **Sleek Dark Mode**: Designed with a professional Slate/Zinc color palette inspired by modern SaaS applications.
 - **Refined Surfaces**: Solid dark cards with subtle borders and elegant drop-shadows have replaced clunky layouts.
 - **AI Cover Images**: Automatically generates and displays a unique, gorgeous cover illustration for every story using the Pollinations.ai API.
 
-### ✍️ Creative Tools
+### Creative Tools
 - **Genre-Specific Prompts**: Choose from fantasy, sci-fi, mystery, romance, horror, adventure, and comedy.
 - **Multiple Endings**: Generate alternative endings for your stories.
 - **Story Enhancement**: Improve existing stories with more detail, dialogue, emotion, or action.
 - **Random Prompt Generator**: Get inspired with creative writing prompts.
 
-### 👤 User Management & Export
+### User Management & Export
 - **User Authentication**: Secure account creation with password hashing.
 - **Story Library & Favorites**: Save, organize, and favorite your generated stories.
 - **Public/Private Sharing**: Share stories with the community or keep them private.
 - **PDF Export**: Download your favorite stories as formatted PDF documents.
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 - Python 3.7 or higher
@@ -75,7 +75,7 @@ A modern, fast, and sleek Flask web application that uses Google's Gemini AI to 
 
 6. **Open your browser** to `http://localhost:5000`
 
-## 📦 Dependencies
+## Dependencies
 
 The application uses incredibly lightweight packages, meaning it installs in seconds:
 
@@ -89,5 +89,5 @@ requests - HTTP library
 Pillow - Image processing
 ```
 
-## 🔒 Security Note
+## Security Note
 Never commit your `.env` file to version control. The `.gitignore` file has been configured to automatically ignore it to keep your Google Gemini API key safe.
